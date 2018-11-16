@@ -9,3 +9,8 @@ How to fix GIT Login on TFDM Machines ?
 2. Run the following command to unset the credentials manager.
 
 git config --system --unset credential.helper
+
+The following machines have been fixed:
+
+47 - Silver
+
