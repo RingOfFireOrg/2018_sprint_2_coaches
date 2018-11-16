@@ -2,6 +2,10 @@
 # Test Comment
 Sprint 2 code
 
-Use the following command to unset the credentials manager.
+How to fix GIT Login on TFDM Machines ?
+
+1. Run git-bash as Administrator
+
+2. Run the following command to unset the credentials manager.
 
 git config --system --unset credential.helper
