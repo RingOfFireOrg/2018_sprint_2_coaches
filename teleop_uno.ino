@@ -1,141 +1,108 @@
-
 #include <time.h>
 #include <Servo.h>
 #include "ds_interface.h"
+#include "Blinker.h"
+#include "ServoDriveTrain.h"
 
-DS_Interface ds(2, 3);
+#define RX_FROM_NMCU 2
+#define TX_TO_NMCU 3
 
+// ---------------------------------------------------------------------------
+/* 
+ * Create a Drive Station Interface "DS_Interface" object
+ */
+DS_Interface ds(RX_FROM_NMCU, TX_TO_NMCU);
+
+// ---------------------------------------------------------------------------
+/* Declarations to support having a remote control flashy flashyLight
+ *
+ * Create (instantiate) a Blinker object to blink the built in LED on pin 13
+ * and a variable that let's tell the Blinker service routine how fast 
+ * we want it to blink the LED.
+ */
+Blinker flashyLight(LED_BUILTIN);
+Blinker::Speed_t speed_state = Blinker::HYPER;
+
+
+// ---------------------------------------------------------------------------
+/*
+ * Section containing code to support driving with motors
+ */
 
 /*
- * Code to suppport lights blinking in the background
+ * Name the digital pins 5 & 6 for the motors/servos they represent, then create
+ * an object of type ServoDriveTrain to control our servos as motors. If we use
+ * the H-Bridge Shield for the gear boxes, we'll need to use a different type 
+ * of drive train object.
  */
-int LONG_BLINK = 2000;
-int SHORT_BLINK = 1000;
-int VERY_SHORT_BLINK = 250;
-
-enum Speed { SLOW, FAST, HYPER, SPEED_ARRAY_SIZE};
-Speed speed_state = HYPER;
-
-int speed[SPEED_ARRAY_SIZE] = {LONG_BLINK, SHORT_BLINK, VERY_SHORT_BLINK};
-void init_blink() {
-  pinMode(LED_BUILTIN, OUTPUT);
-}
-
-void service_blink(Speed state) {
-  static bool lightOn = false;
-  static long state_start_time = 0;
-  long current_time = millis();
-
-  if (current_time - state_start_time > speed[state]) {
-    //toggle LED - built in LED is on an inverted signal
-    if (lightOn) {
-      digitalWrite(LED_BUILTIN, HIGH);
-      lightOn = false;
-      state_start_time = millis();
-    } else {
-      digitalWrite(LED_BUILTIN, LOW);
-      lightOn = true;
-      state_start_time = millis();
-    }
-  }
-}
-
-/* 
- * code to support driving with motors
- */
-
 const int LEFT_MOTOR = 5;
 const int RIGHT_MOTOR = 6;
 
-Servo left_motor;
-Servo right_motor;
+ServoDriveTrain drivetrain(LEFT_MOTOR, RIGHT_MOTOR);
 
-void init_motors(int left, int right) {
-  left_motor.attach(left);
-  right_motor.attach(right);
-}
-
-#define  FORWARD 1
-#define  REVERSE 2
-#define  LEFT    3
-#define  RIGHT   4
-#define  BACK    5
-#define  STOP    6
-
-int current_direction = STOP;
-
-void drivetrain(int dir) {
-  switch(dir) {
-    case FORWARD:
-      left_motor.write(0);
-      right_motor.write(180);
-      break;
-    case REVERSE:
-     left_motor.write(180);
-      right_motor.write(0);
-      break;
-    case LEFT:
-      left_motor.write(180);
-      right_motor.write(180);
-      break;
-    case RIGHT:
-      left_motor.write(0);
-      right_motor.write(0);
-      break;
-    case STOP:
-      left_motor.write(90);
-      right_motor.write(90);
-      break;
-  }
-}
+/*
+ * Let’s start with the wheels still so it doesn’t run away
+ */
+ServoDriveTrain::Direction current_direction =  ServoDriveTrain::STOP;
 
 /* 
- * Setup where we initialize subsytems
+ * Arduino Setup where we initialize subsystems
  */
-
 void setup() {
   Serial.begin(115200);
-  Serial.println("Interfacfing arduino with nodemcu");
-  ds.init();
-  init_blink();
-  init_motors(LEFT_MOTOR, RIGHT_MOTOR);
+  Serial.println("Interfacing arduino with nodemcu");
+  ds.init();     // setup drive station comms 
+  flashyLight.init(); // setup the LED blinker
+  drivetrain.init();  // setup the drive train to use the servos
 }
 
 /* 
- * loop - where we get input and invoke our programs subsystems
+ * Arduino loop - where we get input and invoke our program’s
+ * subsystems
  */
 void loop() {
+
     char input = ds.readInputIfAvailable();
+    // decide if this input should trigger a change our recorded
+    // state:
     switch (input) {
       case 'f':
-        speed_state = FAST;
+        speed_state = Blinker::FAST;
         break;
       case 'g':
-        speed_state = SLOW;
+        speed_state = Blinker::SLOW;
         break;
       case 'h':
-        speed_state = HYPER;
+        speed_state = Blinker::HYPER;
+        break;
+      case 'H': // NOTE: capital ‘H’ is different from lower ‘h’
+        speed_state = Blinker::SUPERHYPER;
         break;
       case 'w':
-        current_direction = FORWARD;
+        current_direction = ServoDriveTrain::FORWARD;
         break;
       case 'a':
-        current_direction = RIGHT;
+        current_direction = ServoDriveTrain::RIGHT;
         break;
       case 'd':
-        current_direction = LEFT;
+        current_direction = ServoDriveTrain::LEFT;
         break;
       case 's':
-        current_direction = STOP;
+        current_direction = ServoDriveTrain::STOP;
         break;
       case 'x':
-        current_direction = REVERSE;
+        current_direction = ServoDriveTrain::REVERSE;
         break;
       default:
-        // no change to speed state if no keystroke
+        /*
+         * no reason to make changes to any state if there was
+         * no keystroke or the keystroke was a letter we don’t
+         * recognize in the list above
+         */
         break;
     }
 
-    service_blink(speed_state);
-    drivetrain(current_direction);
+    flashyLight.service(speed_state);
+    drivetrain.service(current_direction);
 }
+
